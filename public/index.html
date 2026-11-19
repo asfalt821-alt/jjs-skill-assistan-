@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Moveset Okuyucu · Skill Builder</title>
+  <style>
+    :root {
+      --bg: #12110e;
+      --surface: #1c1a16;
+      --raised: #26231d;
+      --fg: #f3efe6;
+      --muted: #a39b8c;
+      --accent: #e85d04;
+      --line: #3a342c;
+      --radius: 12px;
+      --danger: #e74c3c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.45;
+      min-height: 100%;
+    }
+    button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+    .app { max-width: 720px; margin: 0 auto; padding: 12px 12px 80px; }
+    header { padding: 16px 4px 12px; }
+    header .label {
+      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--accent); font-family: ui-monospace, monospace; margin-bottom: 4px;
+    }
+    header h1 { font-size: 1.6rem; font-weight: 650; }
+    header p { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .language-row { display:flex; align-items:center; gap:8px; margin-top:12px; color:var(--muted); font-size:12px; }
+    .language-row select { background:var(--surface); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:7px 10px; }
+    .paste-box {
+      border: 1px solid var(--line); border-radius: var(--radius);
+      background: var(--surface); padding: 14px; margin-bottom: 16px;
+    }
+    .paste-box label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.9rem; font-weight: 600; margin-bottom: 8px;
+    }
+    .paste-box textarea {
+      width: 100%; min-height: 90px; resize: vertical;
+      border: 1px solid var(--line); border-radius: 8px;
+      background: var(--bg); color: var(--fg);
+      font-family: ui-monospace, monospace; font-size: 12px;
+      padding: 10px; outline: none;
+    }
+    .paste-box textarea:focus { border-color: var(--accent); }
+    .paste-actions {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center;
+    }
+    .btn {
+      height: 40px; padding: 0 16px; border-radius: 8px;
+      font-weight: 600; font-size: 0.9rem;
+    }
+    .btn-primary { background: var(--accent); color: var(--bg); }
+    .btn-ghost { border: 1px solid var(--line); background: var(--raised); color: var(--fg); }
+    .error-msg { color: var(--danger); font-size: 0.85rem; }
+    .slot-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .slot-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+      background: var(--surface); text-align: left; min-height: 48px;
+      transition: border-color .15s, background .15s;
+    }
+    .slot-btn.active { border-color: var(--accent); background: var(--raised); }
+    .slot-btn .name { font-weight: 600; }
+    .slot-btn .kind { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); flex-shrink: 0; }
+    .detail {
+      border: 1px solid var(--line); border-radius: var(--radius);
+      background: var(--surface); padding: 16px;
+    }
+    .detail-head {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .detail-head h2 { font-size: 1.4rem; font-weight: 650; }
+    .detail-head .meta { font-family: ui-monospace, monospace; font-size: 13px; color: var(--muted); }
+    .detail-head .count { font-family: ui-monospace, monospace; font-size: 13px; color: var(--accent); text-align: right; }
+    .node-list { display: flex; flex-direction: column; gap: 8px; list-style: none; }
+    .node {
+      border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+      overflow: hidden; list-style: none;
+    }
+    .node.is-branch { border-color: rgba(232, 93, 4, 0.45); background: rgba(38, 35, 29, 0.7); }
+    .node-head {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      min-height: 44px; width: 100%; text-align: left;
+    }
+    .node-head .chev { width: 16px; height: 16px; color: var(--muted); transition: transform .15s; flex-shrink: 0; }
+    .node.open .chev { transform: rotate(90deg); }
+    .node-head .idx { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); width: 1.4em; }
+    .node-head .kind { font-weight: 600; color: var(--accent); }
+    .node.is-branch .kind { color: #ff9f43; }
+    .node-head .branch-tag {
+      background: rgba(232, 93, 4, 0.2); color: var(--accent);
+      font-family: ui-monospace, monospace; font-size: 11px; padding: 2px 7px; border-radius: 6px;
+    }
+    .node-head .preview {
+      font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;
+    }
+    .node-head .kids-count { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .node-body { display: none; border-top: 1px solid var(--line); padding: 10px 12px 12px; }
+    .node.open .node-body { display: block; }
+    .props { display: grid; gap: 4px; font-family: ui-monospace, monospace; font-size: 12px; margin-bottom: 10px; }
+    .props .row { display: grid; grid-template-columns: 9rem 1fr; gap: 8px; }
+    .props .k { color: var(--muted); }
+    .props .v { word-break: break-all; }
+    .child-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; list-style: none; padding: 0; }
+    .branches-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .branches-section h3 {
+      font-size: 0.95rem; color: var(--muted); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .branch-block {
+      border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+      padding: 12px; margin-bottom: 12px;
+    }
+    .branch-block-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .branch-block-head .title { font-family: ui-monospace, monospace; font-weight: 600; color: var(--accent); font-size: 13px; }
+    .empty-msg { font-size: 12px; color: var(--muted); font-style: italic; }
+    .tip { color: var(--muted); font-size: 0.9rem; margin-bottom: 12px; }
+    @media (min-width: 700px) {
+      .layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
+      .slot-list { margin-bottom: 0; position: sticky; top: 12px; }
+    }
+  
+    /* AI Assistant */
+    .ai-toggle {
+      position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--accent); color: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(232,93,4,0.4);
+      font-size: 24px; transition: transform .2s;
+    }
+    .ai-toggle:hover { transform: scale(1.08); }
+    .ai-panel {
+      position: fixed; bottom: 90px; right: 16px; z-index: 999;
+      width: min(380px, calc(100vw - 32px)); height: min(520px, 70vh);
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 16px; display: none; flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5); overflow: hidden;
+    }
+    .ai-panel.open { display: flex; }
+    .ai-header {
+      padding: 12px 16px; background: var(--raised);
+      border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .ai-header h3 { font-size: 0.95rem; font-weight: 650; }
+    .ai-header .sub { font-size: 11px; color: var(--muted); }
+    .ai-messages {
+      flex: 1; overflow-y: auto; padding: 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .ai-msg {
+      max-width: 92%; padding: 10px 12px; border-radius: 12px;
+      font-size: 0.88rem; line-height: 1.45;
+    }
+    .ai-msg.bot {
+      background: var(--bg); border: 1px solid var(--line);
+      align-self: flex-start; border-bottom-left-radius: 4px;
+    }
+    .ai-msg.user {
+      background: rgba(232,93,4,0.18); border: 1px solid rgba(232,93,4,0.35);
+      align-self: flex-end; border-bottom-right-radius: 4px;
+    }
+    .ai-msg strong { color: var(--accent); }
+    .ai-input-row {
+      padding: 10px; border-top: 1px solid var(--line);
+      display: flex; gap: 8px;
+    }
+    .ai-input-row input {
+      flex: 1; height: 40px; border-radius: 10px;
+      border: 1px solid var(--line); background: var(--bg);
+      color: var(--fg); padding: 0 12px; font-size: 0.9rem; outline: none;
+    }
+    .ai-input-row input:focus { border-color: var(--accent); }
+    .ai-input-row button {
+      height: 40px; padding: 0 14px; border-radius: 10px;
+      background: var(--accent); color: var(--bg); font-weight: 600;
+    }
+    .empty-state { padding: 28px 18px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; line-height: 1.6; }
+    .ai-quick {
+      display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px;
+    }
+    .ai-quick button {
+      font-size: 11px; padding: 5px 10px; border-radius: 20px;
+      border: 1px solid var(--line); background: var(--bg); color: var(--muted);
+    }
+    .ai-quick button:hover { border-color: var(--accent); color: var(--accent); }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="label">Skill builder</div>
+      <h1 id="mainTitle">Moveset okuyucu</h1>
+      <p id="status">Hazır. KLUv kodu yapıştırabilirsin.</p>
+      <div class="language-row"><label for="languageSelect" id="languageLabel">Dil / Language</label><select id="languageSelect" aria-label="Language"><option value="tr">Türkçe</option><option value="en">English</option><option value="es">Español</option><option value="pt">Português</option><option value="ru">Русский</option></select></div>
+    </header>
+
+    <div class="paste-box">
+      <label for="code">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        KLUv kodu yapıştır (başka karakter)
+      </label>
+      <textarea id="code" placeholder="KLUv/..." spellcheck="false"></textarea>
+      <div class="paste-actions">
+        <button type="button" class="btn btn-primary" id="btnOpen">Aç</button>
+        <button type="button" class="btn btn-ghost" id="btnReset">Varsayılana dön</button>
+        <span class="error-msg" id="errorMsg"></span>
+      </div>
+    </div>
+
+    <div class="layout">
+      <nav class="slot-list" id="slotList" aria-label="Slotlar"></nav>
+      <div id="detail"></div>
+    </div>
+  
+  <!-- AI Assistant -->
+  <button class="ai-toggle" id="aiToggle" title="JJS Asistan">✦</button>
+  <div class="ai-panel" id="aiPanel">
+    <div class="ai-header">
+      <div>
+        <h3>JJS Asistan</h3>
+        <div class="sub">Jujutsu Shenanigans • Moveset bilgesi</div>
+      </div>
+      <button type="button" id="aiClose" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="ai-messages" id="aiMessages"></div>
+    <div class="ai-quick" id="aiQuick">
+      <button data-q="Bu movesette kaç skill var?">Skill sayısı</button>
+      <button data-q="Branch'ler ne işe yarar?">Branch nedir?</button>
+      <button data-q="Jujutsu Shenanigans karakterleri neler?">Karakterler</button>
+      <button data-q="KLUv kodu nasıl alınır?">Export nasıl?</button>
+      <button data-q="M1 combo nasıl çalışır?">M1 combo</button>
+    </div>
+    <div class="ai-input-row">
+      <input id="aiInput" placeholder="JJS hakkında sor..." autocomplete="off" />
+      <button type="button" id="aiSend">Gönder</button>
+    </div>
+  </div>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/fzstd@0.1.1/umd/index.js"></script>
+  <script>
+    const SHOW = new Set([
+      "EFFECT","TAG","NAME","TIME","VALUE","STATE","SPEED","SIZE","POSITION","ID",
+      "VOLUME","CHECK","AMOUNT","COLOR","BODY PART","ADD/REMOVE","SET","BRANCH",
+      "START","END","FADE IN","FADE OUT","LOOPED","ANIM_USE","TEXTURE","OPACITY",
+      "ROTATION","LAST HIT","CANCEL","CANCEL ON END","CANCEL ON INTERRUPT",
+      "CLIENT SIDED","RUN ON SERVER","GLOBAL","DISABLE BURST","RELATIVE FROM BRANCH",
+      "CAN COLLIDE","EASING DIRECTION","EASING STYLE"
+    ]);
+
+    let SLOTS = [];
+    let DEFAULT_SLOTS = [];
+
+    function parseData(value) {
+      if (typeof value === "string") {
+        try { return JSON.parse(value); } catch { return undefined; }
+      }
+      if (value && typeof value === "object") return value;
+      return undefined;
+    }
+
+    function normalize(raw) {
+      if (!Array.isArray(raw)) throw new Error("Moveset bir liste değil.");
+      return raw.map(item => {
+        if (!item || typeof item !== "object") throw new Error("Slot bozuk.");
+        return { ...item, DATA: parseData(item.DATA) };
+      });
+    }
+
+    function decodeExport(code) {
+      const trimmed = code.replace(/\s+/g, "");
+      if (!trimmed.startsWith("KLUv")) {
+        throw new Error("Kod KLUv ile başlamalı.");
+      }
+      const binary = Uint8Array.from(atob(trimmed), c => c.charCodeAt(0));
+      let text;
+      try {
+        const decompressed = fzstd.decompress(binary);
+        text = new TextDecoder().decode(decompressed);
+      } catch (e) {
+        throw new Error("Sıkıştırma yarım veya bozuk. Kodun tamamını yapıştır.");
+      }
+      return normalize(JSON.parse(text));
+    }
+
+    function formatValue(v) {
+      if (typeof v === "boolean") return v ? "true" : "false";
+      if (Array.isArray(v)) return "[" + v.length + " öğe]";
+      if (v && typeof v === "object") return "{…}";
+      return String(v);
+    }
+
+    function childNodes(node) {
+      const out = [];
+      for (const value of Object.values(node)) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item && typeof item === "object" && "K_NAME" in item) out.push(item);
+          }
+        }
+      }
+      return out;
+    }
+
+    function renderNode(node, index, branches, depth) {
+      depth = depth || 0;
+      const kind = String(node.K_NAME ?? "?");
+      const isBranch = kind === "BRANCH";
+      let branchKey = null;
+      let resolvedKids = [];
+
+      if (isBranch) {
+        branchKey = node.BRANCH ?? node.VALUE ?? node.NAME ?? null;
+        if (branchKey && branches[branchKey]) {
+          resolvedKids = branches[branchKey].Line || [];
+        }
+      }
+
+      const inlineKids = childNodes(node);
+      const kids = resolvedKids.length > 0 ? resolvedKids : inlineKids;
+
+      const props = Object.entries(node).filter(function(pair) {
+        var k = pair[0], v = pair[1];
+        return SHOW.has(k) && v !== "" && v != null && k !== "K_NAME" && !(isBranch && k === "BRANCH");
+      });
+
+      const hasContent = kids.length > 0 || props.length > 0;
+      const autoOpen = depth < 1;
+
+      const el = document.createElement("li");
+      el.className = "node" + (isBranch ? " is-branch" : "") + (autoOpen && hasContent ? " open" : "");
+
+      const head = document.createElement("button");
+      head.type = "button";
+      head.className = "node-head";
+      var previewText = props.slice(0,3).map(function(p){ return p[0] + " " + formatValue(p[1]); }).join(" · ");
+      head.innerHTML =
+        '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>' +
+        '<span class="idx">' + (index + 1) + '</span>' +
+        '<span class="kind">' + kind + '</span>' +
+        (isBranch && branchKey ? '<span class="branch-tag">→ ' + branchKey + '</span>' : '') +
+        '<span class="preview">' + previewText + '</span>' +
+        (kids.length ? '<span class="kids-count">' + kids.length + ' alt</span>' : '');
+
+      if (hasContent) {
+        head.onclick = function() { el.classList.toggle("open"); };
+      } else {
+        head.style.cursor = "default";
+        head.querySelector(".chev").style.opacity = "0.2";
+      }
+      el.appendChild(head);
+
+      if (hasContent) {
+        const body = document.createElement("div");
+        body.className = "node-body";
+
+        if (props.length) {
+          const dl = document.createElement("div");
+          dl.className = "props";
+          props.forEach(function(pair) {
+            var row = document.createElement("div");
+            row.className = "row";
+            row.innerHTML = '<span class="k">' + pair[0] + '</span><span class="v">' + formatValue(pair[1]) + '</span>';
+            dl.appendChild(row);
+          });
+          body.appendChild(dl);
+        }
+
+        if (kids.length) {
+          const ol = document.createElement("ol");
+          ol.className = "child-list";
+          kids.forEach(function(child, i) {
+            ol.appendChild(renderNode(child, i, branches, depth + 1));
+          });
+          body.appendChild(ol);
+        }
+
+        if (isBranch && branchKey && resolvedKids.length === 0) {
+          const msg = document.createElement("p");
+          msg.className = "empty-msg";
+          msg.textContent = 'Branch "' + branchKey + '" bulunamadı veya boş.';
+          body.appendChild(msg);
+        }
+
+        el.appendChild(body);
+      }
+
+      return el;
+    }
+
+    function renderDetail(slot) {
+      const root = document.getElementById("detail");
+      root.innerHTML = "";
+      if (!slot) {
+        var empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.id = "emptyState";
+        empty.textContent = "Henüz karakter yüklenmedi. Bir KLUv character code yapıştırarak başlayabilirsin.";
+        root.appendChild(empty);
+        return;
+      }
+
+      const line = (slot.DATA && slot.DATA.Line) || [];
+      const branches = (slot.DATA && slot.DATA.Branch) || {};
+      const branchKeys = Object.keys(branches);
+      const tip = slot["TOOL TIP"];
+
+      const article = document.createElement("article");
+      article.className = "detail";
+
+      var meta = (slot.K_NAME || "") +
+        (slot.KEY != null ? " · key " + slot.KEY : "") +
+        (slot.COOLDOWN != null ? " · cd " + slot.COOLDOWN : "");
+
+      article.innerHTML =
+        '<div class="detail-head">' +
+          '<div><h2>' + (slot.NAME || "(isimsiz)") + '</h2><p class="meta">' + meta + '</p></div>' +
+          '<div class="count">' + line.length + ' node' +
+            (branchKeys.length ? '<br><span style="color:var(--muted);font-size:12px">' + branchKeys.length + ' branch: ' + branchKeys.join(", ") + '</span>' : '') +
+          '</div></div>';
+
+      if (tip) {
+        var p = document.createElement("p");
+        p.className = "tip";
+        p.textContent = tip;
+        article.appendChild(p);
+      }
+
+      const ol = document.createElement("ol");
+      ol.className = "node-list";
+      line.forEach(function(node, i) { ol.appendChild(renderNode(node, i, branches, 0)); });
+      article.appendChild(ol);
+
+      if (branchKeys.length) {
+        const sec = document.createElement("div");
+        sec.className = "branches-section";
+        sec.innerHTML = "<h3>⎇ Tüm Branch'ler</h3>";
+        branchKeys.forEach(function(key) {
+          var bline = (branches[key] && branches[key].Line) || [];
+          var block = document.createElement("div");
+          block.className = "branch-block";
+          block.innerHTML =
+            '<div class="branch-block-head">' +
+              '<span class="title">BRANCH: ' + key + '</span>' +
+              '<span style="font-size:12px;color:var(--muted)">' + bline.length + ' node</span>' +
+            '</div>';
+          var ol2 = document.createElement("ol");
+          ol2.className = "node-list";
+          bline.forEach(function(node, i) { ol2.appendChild(renderNode(node, i, branches, 1)); });
+          b
