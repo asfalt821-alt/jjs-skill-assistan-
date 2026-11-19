@@ -26,6 +26,8 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, aiConfigured: Boolean(openai), webSearch: true });
 });
 
+
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html'));
 app.post("/api/chat", async (req, res) => {
   try {
     if (!openai) {
