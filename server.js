@@ -2,8 +2,9 @@ import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import OpenAI from "openai";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { TavilyClient } from "tavily-client";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -15,45 +16,70 @@ app.use("/api/", rateLimit({
   limit: 20,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Too many requests. Please wait a few minutes and try again." }
+  message: { error: "Too many requests. Please wait a while and try again." }
 }));
 
 const apiKey = process.env.OPENAI_API_KEY;
-const model = process.env.OPENAI_MODEL || "gpt-6.2-astra";
+const model = process.env.OPENAI_MODEL || "gpt-6.2-assistant";
 const openai = apiKey ? new OpenAI({ apiKey }) : null;
 
+const tavilyApiKey = process.env.TAVILY_API_KEY;
+const tavily = tavilyApiKey ? new TavilyClient({ apiKey: tavilyApiKey }) : null;
+
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, aiConfigured: Boolean(openai), webSearch: true });
+  res.json({ ok: true, aiConfigured: Boolean(openai), webSearchConfigured: Boolean(tavily) });
 });
 
-
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// ... diğer rotaların (örneğin /api/chat) burada yer almalı ...
 app.post("/api/chat", async (req, res) => {
   try {
     if (!openai) {
-      return res.status(503).json({
-        error: "OPENAI_API_KEY is not configured on the server. Add it to the .env file and restart the server."
-      });
+      return res.status(500).json({ error: "OpenAI API key is not configured." });
     }
 
-    const message = String(req.body?.message || "").trim();
-    const language = String(req.body?.language || "en").slice(0, 8);
-    const moveset = String(req.body?.moveset || "No moveset loaded.").slice(0, 35000);
+    const message = String(req.body.message || "").trim();
+    const language = String(req.body.language || "en").trim();
+    const moveset = String(req.body.moveset || "").trim();
 
-    if (!message) return res.status(400).json({ error: "Message is required." });
-    if (message.length > 4000) return res.status(400).json({ error: "Message is too long (max 4000 characters)." });
+    if (!message) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+    if (message.length > 4000) {
+      return res.status(400).json({ error: "Message is too long." });
+    }
 
     const languageNames = {
-      en: "English", tr: "Turkish", es: "Spanish", pt: "Portuguese", ru: "Russian"
+      en: "English",
+      tr: "Turkish",
+      es: "Spanish",
+      pt: "Portuguese"
     };
     const languageName = languageNames[language] || "English";
 
-    const instructions = `You are JJS Skill Assistant, specialized in the Roblox game Jujutsu Shenanigans.
+    let webContext = "";
+    if (tavily) {
+      try {
+        const searchRes = await tavily.search({
+          query: message,
+          search_depth: "basic",
+          max_results: 3
+        });
+        if (searchRes?.results?.length) {
+          webContext = searchRes.results
+            .map((r, i) => `[${i + 1}] ${r.title}: ${r.content}`)
+            .join("\n");
+        }
+      } catch (searchErr) {
+        console.error("Tavily search failed:", searchErr?.message || searchErr);
+      }
+    }
+
+    const instructions = `You are JJS Skill Assistant.
 Answer in ${languageName}, unless the user explicitly asks for another language.
-Your main job is skill-build creation and analysis: KLUv character/moveset data, skill nodes, branches, hitboxes, combo routes, timing, stun, damage, and build design.
-Use the supplied moveset data when relevant. Do not pretend to know undocumented node semantics. Do not invent current game updates, character properties, animation IDs, codes, or combo guarantees.
-For current game facts, use web search when useful. Prefer reliable, recent sources; explain when sources disagree or information cannot be verified. Cite sources with clickable URLs in the answer when web search supplies them.
-When suggesting a combo, explain the assumptions and distinguish a plausible route from a confirmed true combo. Ask for missing character/version details only when necessary.
+Your main job is skill-build creation and analysis: combos, tech, cancel windows, knockback/ragdoll interactions, cooldowns, and counterplay.
+Use the supplied moveset data when relevant. Do not invent fake frame data or unverified patch notes.
+For current game facts, use web search results when provided.
+When suggesting a combo, explain the assumptions and constraints clearly.
 Be concise but useful.`;
 
     const input = `${instructions}
@@ -61,32 +87,30 @@ Be concise but useful.`;
 Loaded moveset data (may be empty or truncated):
 ${moveset}
 
+Web search results:
+${webContext || "No web search results available."}
+
 User question:
 ${message}`;
 
     const response = await openai.responses.create({
       model,
-      tools: [{ type: "web_search", search_context_size: "medium" }],
       input
     });
 
-    res.json({ answer: response.output_text || "I couldn't generate an answer. Please try again." });
+    res.json({ answer: response.output_text || "" });
   } catch (error) {
     console.error("AI request failed:", error?.message || error);
-    const status = error?.status && Number.isInteger(error.status) ? error.status : 500;
+    const status = error?.status ?? Number.isInteger(error?.statusCode) ? error.statusCode : 500;
     res.status(status >= 400 && status < 600 ? status : 500).json({
-      error: status === 401
-        ? "The API key was rejected. Check OPENAI_API_KEY in .env."
-        : status === 429
-          ? "The API rate limit or account quota was reached. Check API usage and billing."
-          : "The AI request failed. Check the server terminal for details."
+      error: "The AI request failed. Check OPENAI_API_KEY and model access."
     });
   }
 });
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, "public")));
 
 app.listen(port, () => {
-  console.log(`JJS Skill Assistant running at http://localhost:${port}`);
-  if (!openai) console.warn("OPENAI_API_KEY is missing. Add it to .env before using AI chat.");
+  console.log(`Server running on port ${port}`);
 });
+    
