@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import OpenAI from "openai";
-import { Tavily } from "@tavily/core";
+import { tavily } from "@tavily/core";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -27,10 +27,10 @@ const model = process.env.OPENAI_MODEL || "gpt-4o";
 const openai = apiKey ? new OpenAI({ apiKey }) : null;
 
 const tavilyApiKey = process.env.TAVILY_API_KEY;
-const tavily = tavilyApiKey ? new Tavily({ apiKey: tavilyApiKey }) : null;
+const tavilyClient = tavilyApiKey ? tavily({ apiKey: tavilyApiKey }) : null;
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, aiConfigured: Boolean(openai), webSearchConfigured: Boolean(tavily) });
+  res.json({ ok: true, aiConfigured: Boolean(openai), webSearchConfigured: Boolean(tavilyClient) });
 });
 
 app.post("/api/chat", async (req, res) => {
@@ -59,9 +59,9 @@ app.post("/api/chat", async (req, res) => {
     const languageName = languageNames[language] || "English";
 
     let webContext = "";
-    if (tavily) {
+    if (tavilyClient) {
       try {
-        const searchRes = await tavily.search(message, {
+        const searchRes = await tavilyClient.search(message, {
           searchDepth: "basic",
           maxResults: 3
         });
@@ -114,4 +114,4 @@ app.use(express.static(path.join(__dirname, "public")));
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
-    
+      
