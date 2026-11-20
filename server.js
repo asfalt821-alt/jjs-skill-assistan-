@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import OpenAI from "openai";
-import { TavilyClient } from "tavily-client";
+import { @Tavily/core } from "tavily-client";
 import path from "path";
 import { fileURLToPath } from "url";
 
